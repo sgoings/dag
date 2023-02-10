@@ -46,6 +46,15 @@ func (g *marshalGraph) vertexByID(id string) *marshalVertex {
 	return nil
 }
 
+func (g *marshalGraph) subgraphByID(id string) *marshalGraph {
+	for _, sg := range g.Subgraphs {
+		if id == sg.ID {
+			return sg
+		}
+	}
+	return nil
+}
+
 type marshalVertex struct {
 	// Unique ID, used to reference this vertex from other structures.
 	ID string
@@ -136,6 +145,29 @@ func newMarshalGraph(name string, g *Graph) *marshalGraph {
 	sort.Sort(vertices(mg.Vertices))
 
 	for _, e := range g.Edges() {
+		// if the target edge points to a Subgraph, let's
+		// replace the target pointer to the root of the subgraph
+		// since this is the last chance we have the ability to
+		// call Root() on the subgraph and `dot` doesn't support
+		// an edge to just a subgraph, needs to connect to an
+		// actual vertex within the subgraph.
+		sg, ok := e.Target().(Subgrapher)
+		if ok {
+			switch g := sg.Subgraph().DirectedGraph().(type) {
+			case *Graph:
+				panic("cannot find root of *Graph")
+			case *AcyclicGraph:
+				if g != nil {
+					// subgraph = g
+					subgraphRoot, err := g.Root()
+					if err != nil {
+						panic(err)
+					}
+					e.SetTarget(subgraphRoot)
+				}
+			}
+		}
+
 		mg.Edges = append(mg.Edges, newMarshalEdge(e))
 	}
 
@@ -190,7 +222,9 @@ func marshalSubgrapher(v Vertex) (*Graph, bool) {
 	case *Graph:
 		return g, true
 	case *AcyclicGraph:
-		return &g.Graph, true
+		if g != nil {
+			return &g.Graph, true
+		}
 	}
 
 	return nil, false
