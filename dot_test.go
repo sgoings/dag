@@ -1,6 +1,7 @@
 package dag
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"testing"
@@ -10,7 +11,7 @@ import (
 
 func TestGraphDot_opts(t *testing.T) {
 	var v testDotVertex
-	var g Graph
+	var g GraphBase
 	g.Add(&v)
 
 	opts := &DotOpts{MaxDepth: 42}
@@ -25,23 +26,6 @@ func TestGraphDot_opts(t *testing.T) {
 	if !reflect.DeepEqual(v.DotNodeOpts, opts) {
 		t.Fatalf("bad; %#v", v.DotNodeOpts)
 	}
-}
-
-type ComplexObject struct {
-	Name  string
-	Graph *AcyclicGraph
-}
-
-func (co *ComplexObject) Hashcode() string {
-	return co.Name
-}
-
-func (co *ComplexObject) String() string {
-	return co.Name
-}
-
-func (co *ComplexObject) Subgraph() Grapher {
-	return co.Graph
 }
 
 type testDotVertex struct {
@@ -61,7 +45,17 @@ func (v *testDotVertex) DotNode(title string, opts *DotOpts) *DotNode {
 func TestGraphDot_MultiGraph(t *testing.T) {
 	graph := createConnectedMultiSubgraph()
 
-	dot := graph.Dot(&DotOpts{})
+	marshaledGraph := graph.Marshal(&MarshalOpts{
+		ConnectSubgraphHeads: true,
+		ConnectSubgraphTails: true,
+	})
+
+	jsonGraph, err := json.MarshalIndent(marshaledGraph, "", "  ")
+	assert.NoError(t, err)
+
+	fmt.Println(string(jsonGraph))
+
+	dot := marshaledGraph.Dot(&DotOpts{})
 
 	expectedDot := `digraph {
 	compound = "true"
@@ -69,6 +63,7 @@ func TestGraphDot_MultiGraph(t *testing.T) {
 	subgraph "root" {
 		"[root] itemOne" -> "[root] itemTwo"
 		"[root] itemTwo" -> "[subgraphOne] itemThree"
+		"[subgraphOne] itemFour" -> "[root] itemFive"
 	}
 	subgraph "subgraphOne" {
 		"[subgraphOne] itemThree" -> "[subgraphOne] itemFour"

@@ -2,13 +2,13 @@ package dag
 
 import (
 	"fmt"
+	"log"
 	"sort"
-	"strings"
 )
 
 // AcyclicGraph is a specialization of Graph that cannot have cycles.
 type AcyclicGraph struct {
-	Graph
+	GraphBase
 }
 
 // WalkFunc is the callback used for walking the graph.
@@ -21,10 +21,6 @@ type DepthWalkFunc func(Vertex, int) error
 // BreadthWalkFun is a walk function that also receives the current depth of the
 // walk as an argument
 type BreadthWalkFunc func(Vertex, int) error
-
-func (g *AcyclicGraph) DirectedGraph() Grapher {
-	return g
-}
 
 // Returns a Set that includes every Vertex yielded by walking down from the
 // provided starting Vertex v.
@@ -109,60 +105,6 @@ func (g *AcyclicGraph) TransitiveReduction() {
 			return nil
 		})
 	}
-}
-
-// Validate validates the DAG. A DAG is valid if it has a single root
-// with no cycles.
-func (g *AcyclicGraph) Validate() error {
-	if _, err := g.Root(); err != nil {
-		return err
-	}
-
-	// Look for cycles of more than 1 component
-	var diags Diagnostics
-	cycles := g.Cycles()
-	if len(cycles) > 0 {
-		for _, cycle := range cycles {
-			cycleStr := make([]string, len(cycle))
-			for j, vertex := range cycle {
-				cycleStr[j] = VertexName(vertex)
-			}
-
-			diags = diags.Append(fmt.Errorf(
-				"Cycle: %s", strings.Join(cycleStr, ", ")))
-		}
-	}
-
-	// Look for cycles to self
-	for _, e := range g.Edges() {
-		if hashcode(e.Source()) == hashcode(e.Target()) {
-			diags = diags.Append(fmt.Errorf(
-				"Self reference: %s", VertexName(e.Source())))
-		}
-	}
-
-	return diags.Err()
-}
-
-// Cycles reports any cycles between graph nodes.
-// Self-referencing nodes are not reported, and must be detected separately.
-func (g *AcyclicGraph) Cycles() [][]Vertex {
-	var cycles [][]Vertex
-	for _, cycle := range StronglyConnected(&g.Graph) {
-		if len(cycle) > 1 {
-			cycles = append(cycles, cycle)
-		}
-	}
-	return cycles
-}
-
-// Walk walks the graph, calling your callback as each node is visited.
-// This will walk nodes in parallel if it can. The resulting diagnostics
-// contains problems from all graphs visited, in no particular order.
-func (g *AcyclicGraph) Walk(cb WalkFunc) Diagnostics {
-	w := &Walker{Callback: cb, Reverse: true}
-	w.Update(g)
-	return w.Wait()
 }
 
 // simple convenience helper for converting a dag.Set to a []Vertex
@@ -397,4 +339,57 @@ func (b byVertexName) Len() int      { return len(b) }
 func (b byVertexName) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
 func (b byVertexName) Less(i, j int) bool {
 	return VertexName(b[i]) < VertexName(b[j])
+}
+
+func (ag *AcyclicGraph) Marshal(opts *MarshalOpts) *marshalGraph {
+	// root, err := ag.Root()
+	// if err != nil {
+	// 	log.Fatalf("failed to discover root of graph: %s", err)
+	// }
+
+	for _, edge := range ag.Edges() {
+		source := edge.Source()
+		target := edge.Target()
+
+		if opts.ConnectSubgraphHeads {
+			if vertexWithSubgraph, ok := target.(HasSubgraph); ok {
+				subgraph := vertexWithSubgraph.Subgraph()
+				if acyclicSubgraph, ok := subgraph.(*AcyclicGraph); ok {
+					subgraphRoot, err := acyclicSubgraph.Root()
+					if err != nil {
+						log.Fatalf("failed to discover root of graph: %s", err)
+					}
+					ag.Connect(BasicEdge(source, subgraphRoot))
+					ag.RemoveEdge(edge)
+				}
+			}
+		}
+
+		if opts.ConnectSubgraphTails {
+			if vertexWithSubgraph, ok := source.(HasSubgraph); ok {
+				subgraph := vertexWithSubgraph.Subgraph()
+				if acyclicSubgraph, ok := subgraph.(*AcyclicGraph); ok {
+					subgraphRoot, err := acyclicSubgraph.Root()
+					if err != nil {
+						log.Fatalf("failed to discover root of graph: %s", err)
+					}
+
+					acyclicSubgraph.DepthFirstWalk(Set{"root": subgraphRoot}, func(downWalkVertex Vertex, depth int) error {
+						descendants, err := acyclicSubgraph.Descendants(downWalkVertex)
+						if err != nil {
+							log.Fatalf("failed to discover descendants of vertex: %+v, error: %s", downWalkVertex, err)
+						}
+						if len(descendants) == 0 {
+							ag.Connect(BasicEdge(downWalkVertex, target))
+							ag.RemoveEdge(edge)
+						}
+						return nil
+					})
+				}
+			}
+		}
+
+	}
+
+	return ag.GraphBase.Marshal(opts)
 }

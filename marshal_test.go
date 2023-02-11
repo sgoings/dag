@@ -10,7 +10,7 @@ import (
 )
 
 func TestGraphDot_empty(t *testing.T) {
-	var g Graph
+	var g GraphBase
 	g.Add(1)
 	g.Add(2)
 	g.Add(3)
@@ -23,7 +23,7 @@ func TestGraphDot_empty(t *testing.T) {
 }
 
 func TestGraphDot_basic(t *testing.T) {
-	var g Graph
+	var g GraphBase
 	g.Add(1)
 	g.Add(2)
 	g.Add(3)
@@ -37,7 +37,7 @@ func TestGraphDot_basic(t *testing.T) {
 }
 
 func TestGraphDot_quoted(t *testing.T) {
-	var g Graph
+	var g GraphBase
 	quoted := `name["with-quotes"]`
 	other := `other`
 	g.Add(quoted)
@@ -52,7 +52,7 @@ func TestGraphDot_quoted(t *testing.T) {
 }
 
 func TestGraphDot_attrs(t *testing.T) {
-	var g Graph
+	var g GraphBase
 	g.Add(&testGraphNodeDotter{
 		Result: &DotNode{
 			Name:  "foo",
@@ -107,18 +107,19 @@ const testGraphDotAttrsStr = `digraph {
 func TestGraph_MultiGraph(t *testing.T) {
 	graph := createConnectedMultiSubgraph()
 
-	marshaledGraph := graph.Marshal()
+	marshaledGraph := graph.Marshal(&MarshalOpts{})
 
 	jsonGraph, err := json.MarshalIndent(marshaledGraph, "", "  ")
 	assert.NoError(t, err)
 
 	fmt.Println(string(jsonGraph))
 
-	assert.Equal(t, 3, len(marshaledGraph.Vertices))
+	assert.Equal(t, 4, len(marshaledGraph.Vertices))
 
-	assert.Equal(t, "itemOne", marshaledGraph.Vertices[0].Name)
-	assert.Equal(t, "itemTwo", marshaledGraph.Vertices[1].Name)
-	assert.Equal(t, "subgraphOne", marshaledGraph.Vertices[2].Name)
+	assert.Equal(t, "itemFive", marshaledGraph.Vertices[0].Name)
+	assert.Equal(t, "itemOne", marshaledGraph.Vertices[1].Name)
+	assert.Equal(t, "itemTwo", marshaledGraph.Vertices[2].Name)
+	assert.Equal(t, "subgraphOne", marshaledGraph.Vertices[3].Name)
 
 	assert.Equal(t, 1, len(marshaledGraph.Subgraphs))
 	assert.Equal(t, "subgraphOne", marshaledGraph.Subgraphs[0].Name)
@@ -129,15 +130,22 @@ func TestGraph_MultiGraph(t *testing.T) {
 
 	assert.Equal(t, &marshalEdge{
 		Name:   "itemOne|itemTwo",
-		Source: marshaledGraph.Vertices[0].ID,
-		Target: marshaledGraph.Vertices[1].ID,
+		Source: marshaledGraph.Vertices[1].ID,
+		Target: marshaledGraph.Vertices[2].ID,
 		Attrs:  map[string]string{},
 	}, marshaledGraph.Edges[0])
 
 	assert.Equal(t, &marshalEdge{
-		Name:   "itemTwo|itemThree",
-		Source: marshaledGraph.Vertices[1].ID,
-		Target: marshaledGraph.Subgraphs[0].Vertices[1].ID,
+		Name:   "itemTwo|subgraphOne",
+		Source: marshaledGraph.Vertices[2].ID,
+		Target: marshaledGraph.Vertices[3].ID,
 		Attrs:  map[string]string{},
 	}, marshaledGraph.Edges[1])
+
+	assert.Equal(t, &marshalEdge{
+		Name:   "itemThree|itemFour",
+		Source: marshaledGraph.Subgraphs[0].Vertices[1].ID,
+		Target: marshaledGraph.Subgraphs[0].Vertices[0].ID,
+		Attrs:  map[string]string{},
+	}, marshaledGraph.Subgraphs[0].Edges[0])
 }

@@ -123,12 +123,25 @@ func (e *marshalEdge) dot(g *marshalGraph) string {
 	sourceGraphName := graphName
 	targetGraphName := graphName
 
-	sourceName := g.vertexByID(e.Source).Name
+	var sourceName string
+	source := g.vertexByID(e.Source)
+	if source == nil {
+		// if we couldn't find the source vertex in the sourceGraphName,
+		// let's look for the vertex in a subgraph
+		for _, subgraph := range g.Subgraphs {
+			source = subgraph.vertexByID(e.Source)
+			if source != nil {
+				sourceGraphName = subgraph.Name
+			}
+		}
+	}
+	sourceName = source.Name
 
 	var targetName string
 	target := g.vertexByID(e.Target)
 	if target == nil {
-		// look for the vertex in a subgraph
+		// if we couldn't find the target vertex in the sourceGraphName,
+		// let's look for the vertex in a subgraph
 		for _, subgraph := range g.Subgraphs {
 			target = subgraph.vertexByID(e.Target)
 			if target != nil {

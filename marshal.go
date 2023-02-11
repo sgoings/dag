@@ -123,7 +123,7 @@ func (e edges) Len() int           { return len(e) }
 func (e edges) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
 
 // build a marshalGraph structure from a *Graph
-func newMarshalGraph(name string, g *Graph) *marshalGraph {
+func newMarshalGraph(name string, g Graph) *marshalGraph {
 	mg := &marshalGraph{
 		Type:  "Graph",
 		Name:  name,
@@ -145,45 +145,21 @@ func newMarshalGraph(name string, g *Graph) *marshalGraph {
 	sort.Sort(vertices(mg.Vertices))
 
 	for _, e := range g.Edges() {
-		// if the target edge points to a Subgraph, let's
-		// replace the target pointer to the root of the subgraph
-		// since this is the last chance we have the ability to
-		// call Root() on the subgraph and `dot` doesn't support
-		// an edge to just a subgraph, needs to connect to an
-		// actual vertex within the subgraph.
-		sg, ok := e.Target().(Subgrapher)
-		if ok {
-			switch g := sg.Subgraph().DirectedGraph().(type) {
-			case *Graph:
-				panic("cannot find root of *Graph")
-			case *AcyclicGraph:
-				if g != nil {
-					// subgraph = g
-					subgraphRoot, err := g.Root()
-					if err != nil {
-						panic(err)
-					}
-					e.SetTarget(subgraphRoot)
-				}
-			}
-		}
-
 		mg.Edges = append(mg.Edges, newMarshalEdge(e))
 	}
 
 	sort.Sort(edges(mg.Edges))
 
-	for _, c := range (&AcyclicGraph{*g}).Cycles() {
-		var cycle []*marshalVertex
-		for _, v := range c {
-			mv := newMarshalVertex(v)
-			cycle = append(cycle, mv)
-		}
-		mg.Cycles = append(mg.Cycles, cycle)
-	}
-
 	return mg
 }
+
+type GroupingVertex struct {
+	Name string
+}
+
+// func (v *GroupingVertex) Name() string {
+// 	return v.name
+// }
 
 // Attempt to return a unique ID for any vertex.
 func marshalVertexID(v Vertex) string {
@@ -211,21 +187,18 @@ func marshalVertexID(v Vertex) string {
 	// interface, but we shouldn't get here from terraform right now.
 }
 
-// check for a Subgrapher, and return the underlying *Graph.
-func marshalSubgrapher(v Vertex) (*Graph, bool) {
-	sg, ok := v.(Subgrapher)
+// check for a subgraph, if exists, return it.
+func marshalSubgrapher(v Vertex) (Graph, bool) {
+	// check for a subgraph
+	hs, ok := v.(HasSubgraph)
 	if !ok {
 		return nil, false
 	}
 
-	switch g := sg.Subgraph().DirectedGraph().(type) {
-	case *Graph:
-		return g, true
-	case *AcyclicGraph:
-		if g != nil {
-			return &g.Graph, true
-		}
+	sg := hs.Subgraph()
+	if sg == nil {
+		return nil, false
 	}
 
-	return nil, false
+	return sg, true
 }
