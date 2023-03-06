@@ -342,10 +342,12 @@ func (b byVertexName) Less(i, j int) bool {
 }
 
 func (ag *AcyclicGraph) Marshal(opts *MarshalOpts) *marshalGraph {
+
 	root, err := ag.Root()
 	if err != nil {
 		log.Fatalf("could not find root: %v", err)
 	}
+
 	if opts.ConnectSubgraphHeads {
 		if rootWithSubgraph, ok := root.(HasSubgraph); ok {
 			subgraph := rootWithSubgraph.Subgraph()
@@ -358,28 +360,6 @@ func (ag *AcyclicGraph) Marshal(opts *MarshalOpts) *marshalGraph {
 			}
 		}
 	}
-	// if opts.ConnectSubgraphTails {
-	//      if vertexWithSubgraph, ok := root.(HasSubgraph); ok {
-	//              subgraph := vertexWithSubgraph.Subgraph()
-	//              if acyclicSubgraph, ok := subgraph.(*AcyclicGraph); ok {
-	//                      subgraphRoot, err := acyclicSubgraph.Root()
-	//                      if err != nil {
-	//                              log.Fatalf("failed to discover root of graph: %s", err)
-	//                      }
-	//                      acyclicSubgraph.DepthFirstWalk(Set{"root": subgraphRoot}, func(downWalkVertex Vertex, depth int) error {
-	//                              descendants, err := acyclicSubgraph.Descendants(downWalkVertex)
-	//                              if err != nil {
-	//                                      log.Fatalf("failed to discover descendants of vertex: %+v, error: %s", downWalkVertex, err)
-	//                              }
-	//                              if len(descendants) == 0 {
-	//                                      ag.Connect(BasicEdge(downWalkVertex, target))
-	//                                      // ag.RemoveEdge(edge)
-	//                              }
-	//                              return nil
-	//                      })
-	//              }
-	//      }
-	// }
 
 	for _, edge := range ag.Edges() {
 		source := edge.Source()
@@ -405,6 +385,7 @@ func (ag *AcyclicGraph) Marshal(opts *MarshalOpts) *marshalGraph {
 		// connect subgraph's tails --> target
 		if opts.ConnectSubgraphTails {
 			if vertexWithSubgraph, ok := source.(HasSubgraph); ok {
+
 				subgraph := vertexWithSubgraph.Subgraph()
 				if acyclicSubgraph, ok := subgraph.(*AcyclicGraph); ok {
 					subgraphRoot, err := acyclicSubgraph.Root()
@@ -427,6 +408,7 @@ func (ag *AcyclicGraph) Marshal(opts *MarshalOpts) *marshalGraph {
 					})
 				}
 			}
+
 		}
 
 	}
