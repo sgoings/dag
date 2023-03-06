@@ -3,6 +3,7 @@ package dag
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 )
@@ -132,10 +133,15 @@ func (e *marshalEdge) dot(g *marshalGraph) string {
 			source = subgraph.vertexByID(e.Source)
 			if source != nil {
 				sourceGraphName = subgraph.Name
+				break
 			}
 		}
 	}
-	sourceName = source.Name
+	if source != nil {
+		sourceName = source.Name
+	} else {
+		log.Fatalf("could not find source with ID: %v", e.Source)
+	}
 
 	var targetName string
 	target := g.vertexByID(e.Target)
@@ -146,10 +152,15 @@ func (e *marshalEdge) dot(g *marshalGraph) string {
 			target = subgraph.vertexByID(e.Target)
 			if target != nil {
 				targetGraphName = subgraph.Name
+				break
 			}
 		}
 	}
-	targetName = target.Name
+	if target != nil {
+		targetName = target.Name
+	} else {
+		log.Fatalf("could not find target with ID: %v", e.Target)
+	}
 
 	s := fmt.Sprintf(`"[%s] %s" -> "[%s] %s"`, sourceGraphName, sourceName, targetGraphName, targetName)
 	buf.WriteString(s)
