@@ -3,6 +3,7 @@ package dag
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 )
@@ -119,9 +120,49 @@ func (e *marshalEdge) dot(g *marshalGraph) string {
 	if graphName == "" {
 		graphName = "root"
 	}
-	sourceName := g.vertexByID(e.Source).Name
-	targetName := g.vertexByID(e.Target).Name
-	s := fmt.Sprintf(`"[%s] %s" -> "[%s] %s"`, graphName, sourceName, graphName, targetName)
+
+	sourceGraphName := graphName
+	targetGraphName := graphName
+
+	var sourceName string
+	source := g.vertexByID(e.Source)
+	if source == nil {
+		// if we couldn't find the source vertex in the sourceGraphName,
+		// let's look for the vertex in a subgraph
+		for _, subgraph := range g.Subgraphs {
+			source = subgraph.vertexByID(e.Source)
+			if source != nil {
+				sourceGraphName = subgraph.Name
+				break
+			}
+		}
+	}
+	if source != nil {
+		sourceName = source.Name
+	} else {
+		log.Fatalf("could not find source with ID: %v", e.Source)
+	}
+
+	var targetName string
+	target := g.vertexByID(e.Target)
+	if target == nil {
+		// if we couldn't find the target vertex in the sourceGraphName,
+		// let's look for the vertex in a subgraph
+		for _, subgraph := range g.Subgraphs {
+			target = subgraph.vertexByID(e.Target)
+			if target != nil {
+				targetGraphName = subgraph.Name
+				break
+			}
+		}
+	}
+	if target != nil {
+		targetName = target.Name
+	} else {
+		log.Fatalf("could not find target with ID: %v", e.Target)
+	}
+
+	s := fmt.Sprintf(`"[%s] %s" -> "[%s] %s"`, sourceGraphName, sourceName, targetGraphName, targetName)
 	buf.WriteString(s)
 	writeAttrs(&buf, e.Attrs)
 
@@ -209,7 +250,7 @@ func (g *marshalGraph) writeBody(opts *DotOpts, w *indentWriter) {
 		dotEdges = append(dotEdges, e.dot(g))
 	}
 
-	// srot these again to match the old output
+	// sort these again to match the old output
 	sort.Strings(dotEdges)
 
 	for _, e := range dotEdges {

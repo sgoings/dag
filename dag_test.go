@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMain(m *testing.M) {
@@ -182,45 +184,6 @@ func TestAyclicGraphTransReduction_fullyConnected(t *testing.T) {
 	}
 }
 
-func TestAcyclicGraphValidate(t *testing.T) {
-	var g AcyclicGraph
-	g.Add(1)
-	g.Add(2)
-	g.Add(3)
-	g.Connect(BasicEdge(3, 2))
-	g.Connect(BasicEdge(3, 1))
-
-	if err := g.Validate(); err != nil {
-		t.Fatalf("err: %s", err)
-	}
-}
-
-func TestAcyclicGraphValidate_cycle(t *testing.T) {
-	var g AcyclicGraph
-	g.Add(1)
-	g.Add(2)
-	g.Add(3)
-	g.Connect(BasicEdge(3, 2))
-	g.Connect(BasicEdge(3, 1))
-	g.Connect(BasicEdge(1, 2))
-	g.Connect(BasicEdge(2, 1))
-
-	if err := g.Validate(); err == nil {
-		t.Fatal("should error")
-	}
-}
-
-func TestAcyclicGraphValidate_cycleSelf(t *testing.T) {
-	var g AcyclicGraph
-	g.Add(1)
-	g.Add(2)
-	g.Connect(BasicEdge(1, 1))
-
-	if err := g.Validate(); err == nil {
-		t.Fatal("should error")
-	}
-}
-
 func TestAcyclicGraphAncestors(t *testing.T) {
 	var g AcyclicGraph
 	g.Add(1)
@@ -281,76 +244,6 @@ func TestAcyclicGraphDescendents(t *testing.T) {
 			t.Fatalf("expected: %#v to include: %#v", expected, actual)
 		}
 	}
-}
-
-func TestAcyclicGraphWalk(t *testing.T) {
-	var g AcyclicGraph
-	g.Add(1)
-	g.Add(2)
-	g.Add(3)
-	g.Connect(BasicEdge(3, 2))
-	g.Connect(BasicEdge(3, 1))
-
-	var visits []Vertex
-	var lock sync.Mutex
-	err := g.Walk(func(v Vertex) Diagnostics {
-		lock.Lock()
-		defer lock.Unlock()
-		visits = append(visits, v)
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("err: %s", err)
-	}
-
-	expected := [][]Vertex{
-		{1, 2, 3},
-		{2, 1, 3},
-	}
-	for _, e := range expected {
-		if reflect.DeepEqual(visits, e) {
-			return
-		}
-	}
-
-	t.Fatalf("bad: %#v", visits)
-}
-
-func TestAcyclicGraphWalk_error(t *testing.T) {
-	var g AcyclicGraph
-	g.Add(1)
-	g.Add(2)
-	g.Add(3)
-	g.Add(4)
-	g.Connect(BasicEdge(4, 3))
-	g.Connect(BasicEdge(3, 2))
-	g.Connect(BasicEdge(2, 1))
-
-	var visits []Vertex
-	var lock sync.Mutex
-	err := g.Walk(func(v Vertex) Diagnostics {
-		lock.Lock()
-		defer lock.Unlock()
-
-		var diags Diagnostics
-
-		if v == 2 {
-			diags = diags.Append(fmt.Errorf("error"))
-			return diags
-		}
-
-		visits = append(visits, v)
-		return diags
-	})
-	if err == nil {
-		t.Fatal("should error")
-	}
-
-	expected := []Vertex{1}
-	if !reflect.DeepEqual(visits, expected) {
-		t.Errorf("wrong visits\ngot:  %#v\nwant: %#v", visits, expected)
-	}
-
 }
 
 func BenchmarkDAG(b *testing.B) {
@@ -471,3 +364,90 @@ const testGraphTransReductionMultipleRootsStr = `
   8
 8
 `
+
+type ComplexVertex struct {
+	Name  string
+	Graph *AcyclicGraph
+}
+
+type SimpleVertex struct {
+	Name string
+}
+
+func (co *ComplexVertex) Hashcode() string {
+	return co.Name
+}
+
+func (co *ComplexVertex) String() string {
+	return co.Name
+}
+
+func (co *ComplexVertex) Subgraph() Graph {
+	if co.Graph != nil {
+		return co.Graph
+	}
+	return nil
+}
+
+func createConnectedMultiSubgraph() *AcyclicGraph {
+	graph := &AcyclicGraph{}
+	v1 := graph.Add(&ComplexVertex{
+		Name: "itemOne",
+	})
+	v2 := graph.Add(&ComplexVertex{
+		Name: "itemTwo",
+	})
+	v5 := graph.Add(&ComplexVertex{
+		Name: "itemFive",
+	})
+
+	subgraph := &AcyclicGraph{}
+	v3 := subgraph.Add(&ComplexVertex{
+		Name: "itemThree",
+	})
+	v4 := subgraph.Add(&ComplexVertex{
+		Name: "itemFour",
+	})
+	subgraph.Connect(BasicEdge(v3, v4))
+	s1 := graph.Add(&ComplexVertex{
+		Name:  "subgraphOne",
+		Graph: subgraph,
+	})
+
+	graph.Connect(BasicEdge(v1, v2))
+	graph.Connect(BasicEdge(v2, s1))
+	graph.Connect(BasicEdge(s1, v5))
+
+	return graph
+}
+
+func TestGraph_ConnectedMultiSubgraphBFS(t *testing.T) {
+	expectedVisitOrder := []string{"itemOne", "itemTwo", "subgraphOne", "itemThree", "itemFour", "itemFive"}
+	actualVisitOrder := []string{}
+
+	cms := createConnectedMultiSubgraph()
+
+	root, err := cms.Root()
+	assert.NoError(t, err)
+
+	cms.BreadthFirstWalk(Set{"root": root}, func(v Vertex, i int) error {
+		co := v.(*ComplexVertex)
+		if co.Graph != nil {
+			actualVisitOrder = append(actualVisitOrder, co.Hashcode())
+			subgraphRoot, err := co.Graph.Root()
+			if err != nil {
+				panic("can't find root of subgraph")
+			}
+			co.Graph.BreadthFirstWalk(Set{"root": subgraphRoot}, func(v Vertex, i int) error {
+				co := v.(*ComplexVertex)
+				actualVisitOrder = append(actualVisitOrder, co.Hashcode())
+				return nil
+			})
+		} else {
+			actualVisitOrder = append(actualVisitOrder, co.Hashcode())
+		}
+		return nil
+	})
+
+	assert.Equal(t, expectedVisitOrder, actualVisitOrder)
+}

@@ -7,7 +7,7 @@ import (
 )
 
 func TestGraph_empty(t *testing.T) {
-	var g Graph
+	var g GraphBase
 	g.Add(1)
 	g.Add(2)
 	g.Add(3)
@@ -20,7 +20,7 @@ func TestGraph_empty(t *testing.T) {
 }
 
 func TestGraph_basic(t *testing.T) {
-	var g Graph
+	var g GraphBase
 	g.Add(1)
 	g.Add(2)
 	g.Add(3)
@@ -34,7 +34,7 @@ func TestGraph_basic(t *testing.T) {
 }
 
 func TestGraph_remove(t *testing.T) {
-	var g Graph
+	var g GraphBase
 	g.Add(1)
 	g.Add(2)
 	g.Add(3)
@@ -49,7 +49,7 @@ func TestGraph_remove(t *testing.T) {
 }
 
 func TestGraph_replace(t *testing.T) {
-	var g Graph
+	var g GraphBase
 	g.Add(1)
 	g.Add(2)
 	g.Add(3)
@@ -65,7 +65,7 @@ func TestGraph_replace(t *testing.T) {
 }
 
 func TestGraph_replaceSelf(t *testing.T) {
-	var g Graph
+	var g GraphBase
 	g.Add(1)
 	g.Add(2)
 	g.Add(3)
@@ -83,7 +83,7 @@ func TestGraph_replaceSelf(t *testing.T) {
 // This tests that connecting edges works based on custom Hashcode
 // implementations for uniqueness.
 func TestGraph_hashcode(t *testing.T) {
-	var g Graph
+	var g GraphBase
 	g.Add(&hashVertex{code: 1})
 	g.Add(&hashVertex{code: 2})
 	g.Add(&hashVertex{code: 3})
@@ -99,7 +99,7 @@ func TestGraph_hashcode(t *testing.T) {
 }
 
 func TestGraphHasVertex(t *testing.T) {
-	var g Graph
+	var g GraphBase
 	g.Add(1)
 
 	if !g.HasVertex(1) {
@@ -111,7 +111,7 @@ func TestGraphHasVertex(t *testing.T) {
 }
 
 func TestGraphHasEdge(t *testing.T) {
-	var g Graph
+	var g GraphBase
 	g.Add(1)
 	g.Add(2)
 	g.Connect(BasicEdge(1, 2))
@@ -125,7 +125,7 @@ func TestGraphHasEdge(t *testing.T) {
 }
 
 func TestGraphEdgesFrom(t *testing.T) {
-	var g Graph
+	var g GraphBase
 	g.Add(1)
 	g.Add(2)
 	g.Add(3)
@@ -148,7 +148,7 @@ func TestGraphEdgesFrom(t *testing.T) {
 }
 
 func TestGraphEdgesTo(t *testing.T) {
-	var g Graph
+	var g GraphBase
 	g.Add(1)
 	g.Add(2)
 	g.Add(3)
@@ -172,7 +172,7 @@ func TestGraphEdgesTo(t *testing.T) {
 
 func TestGraphUpdownEdges(t *testing.T) {
 	// Verify that we can't inadvertently modify the internal graph sets
-	var g Graph
+	var g GraphBase
 	g.Add(1)
 	g.Add(2)
 	g.Add(3)
